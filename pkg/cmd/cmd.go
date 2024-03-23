@@ -1,36 +1,27 @@
 package cmd
 
 import (
+	"context"
 	"log"
 	"os"
+	"vitt/pkg/store"
 
 	"github.com/urfave/cli/v2"
 )
 
-func Init() {
+func Init(store *store.Store) {
 
 	app := &cli.App{
 		Name:  "vitt",
-		Usage: "A cli tool to manage your finances",
-		Flags: []cli.Flag{
-			&cli.PathFlag{
-				Name:     "file",
-				Usage:    "Path to `LEDGER_FILE`",
-				Required: true,
-				Aliases:  []string{"f"},
-				EnvVars:  []string{"LEDGER_FILE"},
-			},
-		},
-		Action: Print,
+		Usage: "A tool to manage your finances",
 		Commands: []*cli.Command{
 			{
-				Name:   "bal",
-				Usage:  "Show accounts and their balances",
-				Action: Balance,
-			},
-			{
-				Name:   "import",
-				Usage:  "Import transactions from CSV files",
+				Name:  "import",
+				Usage: "Import transactions from CSV files",
+				Before: func(cCtx *cli.Context) error {
+					cCtx.Context = context.WithValue(cCtx.Context, "db", store)
+					return nil
+				},
 				Action: Import,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -51,10 +42,23 @@ func Init() {
 				},
 			},
 			{
-				Name:   "sort",
-				Usage:  "Sort transactions by date",
-				Action: Sort,
+				Name:  "print",
+				Usage: "Print all transactions",
+				Before: func(cCtx *cli.Context) error {
+					cCtx.Context = context.WithValue(cCtx.Context, "db", store)
+					return nil
+				},
+				Action: PrintTransactions,
 			},
+			// {
+			// 	Name:  "web",
+			// 	Usage: "Start the web server",
+			// 	Before: func(cCtx *cli.Context) error {
+			// 		cCtx.Context = context.WithValue(cCtx.Context, "db", store)
+			// 		return nil
+			// 	},
+			// 	Action: api.Init,
+			// },
 		},
 	}
 

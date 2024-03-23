@@ -8,56 +8,67 @@ import (
 	"os"
 	"strings"
 	"vitt/pkg/core"
+	"vitt/pkg/store"
 
 	"github.com/urfave/cli/v2"
 )
 
 func Import(ctx *cli.Context) error {
-	// TODO: Validate account to be one of [Asset, Liability, Expense, Income, Equity]
-	accountString := ctx.Args().First()
-	if accountString == "" {
-		return errors.New("invalid of missing account name")
+
+	db := ctx.Context.Value("db").(*store.Store)
+
+	acctype := ctx.Args().First()
+	if acctype == "" {
+		return errors.New("invalid account. Account should follow format <type>:<acc_name>")
 	}
+	accSlice := strings.Split(acctype, ":")
+	if len(accSlice) < 1 {
+		return errors.New("invalid account. Account should follow format <type>:<acc_name>")
+	}
+
+	// Validate account to be one of [Asset, Liability, Expense, Income, Equity]
+	accType, err := core.ToAccountCategory(accSlice[0])
+	if err != nil {
+		return err
+	}
+
+	// Gather payer accounts
+	payerAccName := accSlice[1]
+	//Check if account is present else create it
+	// payerAccount, err := db.GetOrCreateAccountByName(accountName, string(accType), "NUll")
+	// if err != nil {
+	// 	return err
+	// }
+
 	negateFlag := ctx.Bool("negate")
 
 	inputFiles := ctx.Args().Tail()
 
 	// Import transactions
-	transactionsToImport := make([]*core.Transaction, 0)
+	transToImport := make([]*core.Transaction, 0)
 
 	for _, inputFile := range inputFiles {
 		log.Printf("Reading from file %s", inputFile)
 
-		// Open file
 		file, err := os.Open(inputFile)
 		if err != nil {
 			log.Fatal(err)
 		}
-		// Close the file at the end of the program
 		defer file.Close()
 
-		// Run the bayesian classifier
-		categorizer, err := core.InitClassifier(ctx.String("file"))
-		if err != nil {
-			return fmt.Errorf("classifier failed with error %w", err)
-		}
-
-		// Read csv values using csv.Reader
 		csvReader := csv.NewReader(file)
-
-		// Read header row
 		lines, err := csvReader.ReadAll()
 		if err != nil {
 			log.Printf("reading CSV file failed with error %v", err)
 		}
 
+		// Read header row
 		headerMap := extractColumnsFromHeader(lines[0])
 		if headerMap["date"] < 0 || headerMap["description"] < 0 || headerMap["amount"] < 0 {
 			return errors.New("unable to find columns required from header field names")
 		}
 
 		for index, line := range lines[1:] {
-
 			var amount core.Amount
 			var date core.Date
 			var err error
@@ -71,31 +82,52 @@ func Import(ctx *cli.Context) error {
 				amount = amount.Negate()
 			}
 
+			var direction core.Direction
+			if amount < 0 {
+				direction = "Out"
+			} else {
+				direction = "In"
+			}
+
 			date, err = core.ToDate(line[headerMap["date"]], ctx.String("datefmt"))
 			if err != nil {
 				log.Print(fmt.Errorf("skipping line %d. %w", index, err))
 				continue
 			}
 
-			transactionsToImport = append(transactionsToImport, &core.Transaction{
+			tran := &core.Transaction{
+				Id:          "",
 				Date:        date,
 				Description: line[headerMap["description"]],
-				Payee: core.Account{
-					Name: categorizer.Categorize(line[headerMap["description"]]),
-					Amt:  amount.Negate(),
-				},
-				Payer: core.Account{
-					Name: accountString,
-					Amt:  amount,
-				},
-			})
+				Hash:        "",
+				AccType:     accType,
+				Source:      payerAccName,
+				Direction:   direction,
+				Comments:    "",
+				Amt:         amount,
+			}
+
+			tran.GenHash()
+
+			//Check if the same transaction already exisits
+			exisits, err := db.FindTransactionByHash(tran.Hash)
+			if err != nil {
+				return err
+			} else if exisits != nil {
+				log.Printf("skipping transaction. Found duplicate transaction with id %s", exisits.Id)
+			} else {
+				transToImport = append(transToImport, tran)
+			}
 		}
 	}
 
 	if ctx.Bool("dry-run") {
-		WriteStdOut(transactionsToImport)
+		WriteStdOut(transToImport)
 	} else {
-		WriteLedgerFile(ctx.Path("file"), transactionsToImport)
+		// Write to the database
+		if err := db.CreateTransactions(transToImport); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -120,9 +152,4 @@ func extractColumnsFromHeader(header []string) map[string]int {
 	}
 
 	return headerMap
-}
-
-// TODO move to its own file
-func Sort(ctx *cli.Context) error {
-	return core.SortByDate(ctx.Path("file"))
 }

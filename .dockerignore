@@ -1,0 +1,13 @@
+# IDE
+
+.vscode
+
+.idea
+
+/vitt
+/sample-files
+/statements
+
+.dat
+scripts
+.local.md
