@@ -1,0 +1,28 @@
+{{define "transactions"}}
+<div>
+  <table>
+    <thead>
+      <tr>
+        <td>Date</td>
+        <td>Description</td>
+        <td>Category</td>
+        <td>Direction</td>
+        <td>Amount</td>
+        <td>Account</td>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .}}
+        <tr>
+          <td>{{.Date}}</td>
+          <td>{{.Description}}</td>
+          <td>{{.Dest}}</td>
+          <td>{{.Direction}}</td>
+          <td>{{.Amt}}</td>
+          <td>{{.Source}}</td>
+        </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"vitt/pkg/store"
+	"vitt/pkg/web"
 
 	"github.com/urfave/cli/v2"
 )
@@ -50,15 +51,15 @@ func Init(store *store.Store) {
 				},
 				Action: PrintTransactions,
 			},
-			// {
-			// 	Name:  "web",
-			// 	Usage: "Start the web server",
-			// 	Before: func(cCtx *cli.Context) error {
-			// 		cCtx.Context = context.WithValue(cCtx.Context, "db", store)
-			// 		return nil
-			// 	},
-			// 	Action: api.Init,
-			// },
+			{
+				Name:  "web",
+				Usage: "Start the web server",
+				Before: func(cCtx *cli.Context) error {
+					cCtx.Context = context.WithValue(cCtx.Context, "db", store)
+					return nil
+				},
+				Action: web.Init,
+			},
 		},
 	}
 
